@@ -11,6 +11,7 @@ class Room {
     this.count = count;  }
 }
 var room1 = new Room('room1',[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],0,0);
+//var room2 = new Room('room2',[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],0,0);
 var rooms = [room1];
 var roomcount = 1;
 var usernames = {};
@@ -48,6 +49,27 @@ io.sockets.on('connection', function(socket) {
 		io.sockets.in(socket.room).emit('updatechat', socket.username, data);
 	});
 	
+	socket.on('switchRoom', function(roomid){
+		// leave the current room (stored in session)
+		//map roomid to rooms
+		for(var i = 0; i < rooms.length; i++)
+		{
+			if(rooms[i].id == roomid)
+				var newroom = rooms[i];
+		}
+		console.log(newroom.id);
+		socket.leave(socket.room);
+		// join new room, received as function parameter
+		socket.join(newroom);
+		socket.emit('updatechat', 'SERVER', 'you have connected to '+ newroom.id);
+		// sent message to OLD room
+		socket.broadcast.to(socket.room).emit('updatechat', 'SERVER', socket.username + ' has left this room');
+		// update socket session room title
+		socket.room = newroom;
+		socket.broadcast.to(newroom).emit('updatechat', 'SERVER', socket.username + ' has joined this room');
+		socket.emit('updaterooms', rooms, newroom);
+		socket.emit('refreshGame', newroom);
+	});
 
 	// when the user disconnects.. perform this
 	socket.on('disconnect', function(){
@@ -61,6 +83,7 @@ io.sockets.on('connection', function(socket) {
 	});
 
 	socket.on('changeValue', function(id){
+		console.log(socket.room.id);
 		var currentroom = socket.room;
 		if(currentroom.turn == 0)
 		{
@@ -78,6 +101,17 @@ io.sockets.on('connection', function(socket) {
     		checkDraw();
 			currentroom.turn = 0;
 		}
+	});
+
+	socket.on('createNewRoom', function(){
+		roomcount++;
+		var e = "room" + roomcount;
+		var x = this['room' + roomcount] = new Room(e,[0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0],0,0);
+		rooms.push(x);
+		socket.emit('refreshGame', x);
+		//console.log(x.id);
+		io.sockets.emit('updaterooms', rooms, x);
+		io.sockets.emit('updatechat', 'SERVER', e + ' has been created');
 	});
 
 	function checkWin(arr,str)
@@ -121,6 +155,8 @@ io.sockets.on('connection', function(socket) {
 	    setAll(socket.room.arrO,0);
 	    socket.room.count = 0;
 	}
+
+
 
 });
 
